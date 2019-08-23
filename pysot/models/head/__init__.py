@@ -7,11 +7,13 @@ from __future__ import unicode_literals
 
 from pysot.models.head.mask import MaskCorr, Refine
 from pysot.models.head.rpn import UPChannelRPN, DepthwiseRPN, MultiRPN
+from pysot.models.head.yolo import YOLOLayer
 
 RPNS = {
         'UPChannelRPN': UPChannelRPN,
         'DepthwiseRPN': DepthwiseRPN,
-        'MultiRPN': MultiRPN
+        'MultiRPN': MultiRPN,
+        'YOLO':YOLOLayer
        }
 
 MASKS = {

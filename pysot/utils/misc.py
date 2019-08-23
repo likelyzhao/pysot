@@ -23,7 +23,8 @@ def _bold(s):
 
 
 def _color(s):
-    return f'{Fore.RED}{s}{Style.RESET_ALL}'
+    # return f'{Fore.RED}{s}{Style.RESET_ALL}'
+    return  '{}{}{}|'.format(Fore.RED,s,Style.RESET_ALL)
 
 
 def _describe(model, lines=None, spaces=0):

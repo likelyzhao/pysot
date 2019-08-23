@@ -32,6 +32,10 @@ class ModelBuilder(nn.Module):
         self.rpn_head = get_rpn_head(cfg.RPN.TYPE,
                                      **cfg.RPN.KWARGS)
 
+        self.use_yolo = False
+        if cfg.RPN.TYPE == "YOLO":
+            self.use_yolo = True
+
         # build mask head
         if cfg.MASK.MASK:
             self.mask_head = get_mask_head(cfg.MASK.TYPE,
@@ -82,6 +86,7 @@ class ModelBuilder(nn.Module):
         label_cls = data['label_cls'].cuda()
         label_loc = data['label_loc'].cuda()
         label_loc_weight = data['label_loc_weight'].cuda()
+        label = data['label'].cuda()
 
         # get feature
         zf = self.backbone(template)
@@ -93,23 +98,33 @@ class ModelBuilder(nn.Module):
         if cfg.ADJUST.ADJUST:
             zf = self.neck(zf)
             xf = self.neck(xf)
-        cls, loc = self.rpn_head(zf, xf)
 
-        # get loss
-        cls = self.log_softmax(cls)
-        cls_loss = select_cross_entropy_loss(cls, label_cls)
-        loc_loss = weight_l1_loss(loc, label_loc, label_loc_weight)
 
-        outputs = {}
-        outputs['total_loss'] = cfg.TRAIN.CLS_WEIGHT * cls_loss + \
-            cfg.TRAIN.LOC_WEIGHT * loc_loss
-        outputs['cls_loss'] = cls_loss
-        outputs['loc_loss'] = loc_loss
+        if self.use_yolo:
+            loss, loss_cls, loss_l2 = self.rpn_head(zf, xf, label)
+            outputs = {}
+            outputs['total_loss'] = loss
+            outputs['cls_loss'] = loss_cls
+            outputs['loc_loss'] = loss_l2
+        else:
+            cls, loc = self.rpn_head(zf, xf)
+            # get loss
+            cls = self.log_softmax(cls)
+            cls_loss = select_cross_entropy_loss(cls, label_cls)
+            loc_loss = weight_l1_loss(loc, label_loc, label_loc_weight)
 
-        if cfg.MASK.MASK:
-            # TODO
-            mask, self.mask_corr_feature = self.mask_head(zf, xf)
-            mask_loss = None
-            outputs['total_loss'] += cfg.TRAIN.MASK_WEIGHT * mask_loss
-            outputs['mask_loss'] = mask_loss
+            outputs = {}
+            outputs['total_loss'] = cfg.TRAIN.CLS_WEIGHT * cls_loss + \
+                cfg.TRAIN.LOC_WEIGHT * loc_loss
+            outputs['cls_loss'] = cls_loss
+            outputs['loc_loss'] = loc_loss
+
+            if cfg.MASK.MASK:
+                # TODO
+                mask, self.mask_corr_feature = self.mask_head(zf, xf)
+                mask_loss = None
+                outputs['total_loss'] += cfg.TRAIN.MASK_WEIGHT * mask_loss
+                outputs['mask_loss'] = mask_loss
+        
+
         return outputs

@@ -124,7 +124,7 @@ class ResNet(nn.Module):
 
         self.feature_size = 128 * block.expansion
         self.used_layers = used_layers
-        layer3 = True if 3 in used_layers else False
+        layer3 = True if (3 in used_layers or 4 in used_layers) else False
         layer4 = True if 4 in used_layers else False
 
         if layer3:

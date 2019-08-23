@@ -1,0 +1,1 @@
+nohup tensorboard --logdir /home/dc2-user/zzj/pysot/logs/ --host 0.0.0.0 >tensorboard.log 2>&1 &

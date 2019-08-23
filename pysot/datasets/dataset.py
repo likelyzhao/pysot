@@ -139,7 +139,7 @@ class SubDataset(object):
 
 
 class TrkDataset(Dataset):
-    def __init__(self,):
+    def __init__(self,cfg):
         super(TrkDataset, self).__init__()
 
         desired_size = (cfg.TRAIN.SEARCH_SIZE - cfg.TRAIN.EXEMPLAR_SIZE) / \
@@ -156,6 +156,7 @@ class TrkDataset(Dataset):
         self.num = 0
         for name in cfg.DATASET.NAMES:
             subdata_cfg = getattr(cfg.DATASET, name)
+            print("subdata",subdata_cfg)
             sub_dataset = SubDataset(
                     name,
                     subdata_cfg.ROOT,
@@ -264,9 +265,22 @@ class TrkDataset(Dataset):
                                        cfg.TRAIN.SEARCH_SIZE,
                                        gray=gray)
 
+
+        if neg :
+            label =  np.array([0.,0,0,0,0])
+        
+        else:
+            label = np.array([0])
+            bbox_yolo = [(bbox.x1 + bbox.x2)/2, (bbox.y2 + bbox.y1)/2, (bbox.x2 - bbox.x1), (bbox.y2 - bbox.y1)]
+            label = np.append(label,np.array(bbox_yolo)/cfg.TRAIN.SEARCH_SIZE)
+        label = np.expand_dims(label,0)
+
         # get labels
         cls, delta, delta_weight, overlap = self.anchor_target(
                 bbox, cfg.TRAIN.OUTPUT_SIZE, neg)
+        
+ #       print(delta.shape)
+ #       exit()
         template = template.transpose((2, 0, 1)).astype(np.float32)
         search = search.transpose((2, 0, 1)).astype(np.float32)
         return {
@@ -275,5 +289,6 @@ class TrkDataset(Dataset):
                 'label_cls': cls,
                 'label_loc': delta,
                 'label_loc_weight': delta_weight,
-                'bbox': np.array(bbox)
+                'bbox': np.array(bbox),
+                'label': label
                 }

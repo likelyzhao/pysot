@@ -54,10 +54,10 @@ def seed_torch(seed=0):
     torch.backends.cudnn.deterministic = True
 
 
-def build_data_loader():
+def build_data_loader(cfg):
     logger.info("build train dataset")
     # train_dataset
-    train_dataset = TrkDataset()
+    train_dataset = TrkDataset(cfg)
     logger.info("build dataset done")
 
     train_sampler = None
@@ -159,7 +159,7 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
     average_meter = AverageMeter()
 
     def is_valid_number(x):
-        return not(math.isnan(x) or math.isinf(x) or x > 1e4)
+        return not(math.isnan(x) or math.isinf(x) or x > 1e7)
 
     world_size = get_world_size()
     num_per_epoch = len(train_loader.dataset) // \
@@ -212,6 +212,7 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
         loss = outputs['total_loss']
 
         if is_valid_number(loss.data.item()):
+            torch.autograd.set_detect_anomaly(True)
             optimizer.zero_grad()
             loss.backward()
             reduce_gradients(model)
@@ -256,6 +257,7 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
 
 def main():
     rank, world_size = dist_init()
+    # rank, world_size = 0,1
     logger.info("init done")
 
     # load cfg
@@ -289,7 +291,7 @@ def main():
         tb_writer = None
 
     # build dataset loader
-    train_loader = build_data_loader()
+    train_loader = build_data_loader(cfg)
 
     # build optimizer and lr_scheduler
     optimizer, lr_scheduler = build_opt_lr(dist_model.module,
