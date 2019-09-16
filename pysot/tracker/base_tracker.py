@@ -40,9 +40,9 @@ class SiameseTracker(BaseTracker):
         args:
             im: bgr based image
             pos: center position
-            model_sz: exemplar size
+            model_sz: examplar size
             s_z: original size
-            avg_chans: channel average
+            avg_chans: channel average pad value
         """
         if isinstance(pos, float):
             pos = [pos, pos]
@@ -98,4 +98,5 @@ class SiameseTracker(BaseTracker):
         top_pad, bottom_pad, left_pad, right_pad = padinfo
         x, y, width, height = box
         return [x- left_pad, y-top_pad, width, height]
+
 

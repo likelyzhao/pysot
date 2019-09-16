@@ -115,6 +115,7 @@ class SiamRPNTracker(SiameseTracker):
         scale_z = cfg.TRACK.EXEMPLAR_SIZE / s_z
         s_x = s_z * (cfg.TRACK.INSTANCE_SIZE / cfg.TRACK.EXEMPLAR_SIZE)
         x_crop , padinfo = self.get_subwindow(img, self.center_pos,
+
                                     cfg.TRACK.INSTANCE_SIZE,
                                     round(s_x), self.channel_average)
 
