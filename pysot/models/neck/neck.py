@@ -19,10 +19,10 @@ class AdjustLayer(nn.Module):
 
     def forward(self, x):
         x = self.downsample(x)
-        if x.size(3) < 20:
-            l = (x.size(3) - self.center_size) // 2
-            r = l + self.center_size
-            x = x[:, :, l:r, l:r]
+        # if x.size(3) < 20:
+        #     l = (x.size(3) - self.center_size) // 2
+        #     r = l + self.center_size
+        #     x = x[:, :, l:r, l:r]
         return x
 
 

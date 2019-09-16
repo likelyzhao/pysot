@@ -66,11 +66,14 @@ def main():
 
     # load model
     model.load_state_dict(torch.load(args.snapshot,
-        map_location=lambda storage, loc: storage.cpu()))
+        map_location=lambda storage, loc: storage.cpu())['state_dict'])
     model.eval().to(device)
 
     # build tracker
-    tracker = build_tracker(model)
+    if cfg.RPN.TYPE  ==  "YOLO":
+        tracker = build_tracker(model, True)
+    else:
+        tracker = build_tracker(model)
 
     first_frame = True
     if args.video_name:
@@ -78,6 +81,10 @@ def main():
     else:
         video_name = 'webcam'
     cv2.namedWindow(video_name, cv2.WND_PROP_FULLSCREEN)
+
+    writer = cv2.VideoWriter("result.avi",cv2.VideoWriter_fourcc(*'XVID'), 25.0, (480, 360))
+
+
     for frame in get_frames(args.video_name):
         if first_frame:
             try:
@@ -102,8 +109,9 @@ def main():
                               (bbox[0]+bbox[2], bbox[1]+bbox[3]),
                               (0, 255, 0), 3)
             cv2.imshow(video_name, frame)
+            writer.write(frame)
             cv2.waitKey(40)
 
-
+    writer.release()
 if __name__ == '__main__':
     main()

@@ -1,7 +1,7 @@
 import json 
 import numpy as np
 
-vid_training_json = "/home/dc2-user/zzj/pysot/data/tracking/ed/vid/train.json"
+vid_training_json = "vid/train.json"
 context_amount = 0.5
 exemplar_size = 127
 
@@ -23,7 +23,7 @@ with open(vid_training_json) as f:
 
 from sklearn.cluster import KMeans
 data = np.array(loc_list)
-estimator = KMeans(n_clusters=5)#构造聚类器
+estimator = KMeans(n_clusters=3)#构造聚类器
 estimator.fit(data)#聚类
 label_pred = estimator.labels_ #获取聚类标签
 centroids = estimator.cluster_centers_ #获取聚类中心

@@ -13,8 +13,9 @@ from pysot.utils.anchor import Anchors
 from pysot.tracker.base_tracker import SiameseTracker
 
 
+
 class SiamRPNTracker(SiameseTracker):
-    def __init__(self, model):
+    def __init__(self, model, isyolo = False):
         super(SiamRPNTracker, self).__init__()
         self.score_size = (cfg.TRACK.INSTANCE_SIZE - cfg.TRACK.EXEMPLAR_SIZE) // \
             cfg.ANCHOR.STRIDE + 1 + cfg.TRACK.BASE_SIZE
@@ -25,6 +26,7 @@ class SiamRPNTracker(SiameseTracker):
         self.anchors = self.generate_anchor(self.score_size)
         self.model = model
         self.model.eval()
+        self.isyolo = isyolo
 
     def generate_anchor(self, score_size):
         anchors = Anchors(cfg.ANCHOR.STRIDE,
@@ -53,6 +55,16 @@ class SiamRPNTracker(SiameseTracker):
         delta[2, :] = np.exp(delta[2, :]) * anchor[:, 2]
         delta[3, :] = np.exp(delta[3, :]) * anchor[:, 3]
         return delta
+
+    def _convert_bbox_yolo(self, box, info_img):
+        h, w, nh, nw, dx, dy = info_img
+        y1, x1, y2, x2 = box
+        box_h = ((y2 - y1) / nh) * h
+        box_w = ((x2 - x1) / nw) * w
+        y1 = ((y1 - dy) / nh) * h
+        x1 = ((x1 - dx) / nw) * w
+        label = [y1, x1, y1 + box_h, x1 + box_w]
+        return label
 
     def _convert_score(self, score):
         score = score.permute(1, 2, 3, 0).contiguous().view(2, -1).permute(1, 0)
@@ -85,7 +97,7 @@ class SiamRPNTracker(SiameseTracker):
         self.channel_average = np.mean(img, axis=(0, 1))
 
         # get crop
-        z_crop = self.get_subwindow(img, self.center_pos,
+        z_crop, padinfo = self.get_subwindow(img, self.center_pos,
                                     cfg.TRACK.EXEMPLAR_SIZE,
                                     s_z, self.channel_average)
         self.model.template(z_crop)
@@ -102,46 +114,74 @@ class SiamRPNTracker(SiameseTracker):
         s_z = np.sqrt(w_z * h_z)
         scale_z = cfg.TRACK.EXEMPLAR_SIZE / s_z
         s_x = s_z * (cfg.TRACK.INSTANCE_SIZE / cfg.TRACK.EXEMPLAR_SIZE)
-        x_crop = self.get_subwindow(img, self.center_pos,
+        x_crop , padinfo = self.get_subwindow(img, self.center_pos,
                                     cfg.TRACK.INSTANCE_SIZE,
                                     round(s_x), self.channel_average)
 
         outputs = self.model.track(x_crop)
 
-        score = self._convert_score(outputs['cls'])
-        pred_bbox = self._convert_bbox(outputs['loc'], self.anchors)
+        if not self.isyolo:
+            score = self._convert_score(outputs['cls'])
+            pred_bbox = self._convert_bbox(outputs['loc'], self.anchors)
 
-        def change(r):
-            return np.maximum(r, 1. / r)
+            def change(r):
+                return np.maximum(r, 1. / r)
 
-        def sz(w, h):
-            pad = (w + h) * 0.5
-            return np.sqrt((w + pad) * (h + pad))
+            def sz(w, h):
+                pad = (w + h) * 0.5
+                return np.sqrt((w + pad) * (h + pad))
 
-        # scale penalty
-        s_c = change(sz(pred_bbox[2, :], pred_bbox[3, :]) /
-                     (sz(self.size[0]*scale_z, self.size[1]*scale_z)))
+            # scale penalty
+            s_c = change(sz(pred_bbox[2, :], pred_bbox[3, :]) /
+                         (sz(self.size[0]*scale_z, self.size[1]*scale_z)))
 
-        # aspect ratio penalty
-        r_c = change((self.size[0]/self.size[1]) /
-                     (pred_bbox[2, :]/pred_bbox[3, :]))
-        penalty = np.exp(-(r_c * s_c - 1) * cfg.TRACK.PENALTY_K)
-        pscore = penalty * score
+            # aspect ratio penalty
+            r_c = change((self.size[0]/self.size[1]) /
+                         (pred_bbox[2, :]/pred_bbox[3, :]))
+            penalty = np.exp(-(r_c * s_c - 1) * cfg.TRACK.PENALTY_K)
+            pscore = penalty * score
 
-        # window penalty
-        pscore = pscore * (1 - cfg.TRACK.WINDOW_INFLUENCE) + \
-            self.window * cfg.TRACK.WINDOW_INFLUENCE
-        best_idx = np.argmax(pscore)
+            # window penalty
+            pscore = pscore * (1 - cfg.TRACK.WINDOW_INFLUENCE) + \
+                self.window * cfg.TRACK.WINDOW_INFLUENCE
+            best_idx = np.argmax(pscore)
 
-        bbox = pred_bbox[:, best_idx] / scale_z
-        lr = penalty[best_idx] * score[best_idx] * cfg.TRACK.LR
+        else:
+            score = outputs['cls']
+            pred_bbox = outputs['loc']
 
-        cx = bbox[0] + self.center_pos[0]
-        cy = bbox[1] + self.center_pos[1]
+
+        if not self.isyolo:
+            bbox = pred_bbox[:, best_idx] / scale_z
+            lr = penalty[best_idx] * score[best_idx] * cfg.TRACK.LR
+            cx = bbox[0] + self.center_pos[0]
+            cy = bbox[1] + self.center_pos[1]
+        else:
+            bbox = pred_bbox[:, 0]  
+            #bbox = self.clip_pad(pred_bbox,padinfo)
+            bbox_crop = bbox / cfg.TRACK.EXEMPLAR_SIZE * cfg.TRACK.INSTANCE_SIZE
+            scale_zz = cfg.TRACK.EXEMPLAR_SIZE / s_x
+            #bbox = bbox / scale_zz
+
+            #lr =  score[0] * cfg.TRACK.LR
+            lr =  cfg.TRACK.LR
+            best_idx =0
+            # import cv2
+            # cv2.namedWindow("video_name")
+            # im_draw = x_crop.cpu().squeeze().numpy().astype(np.uint8).transpose(1, 2, 0).copy()
+            #
+            # cv2.rectangle(im_draw, (int(bbox_crop[0]), int(bbox_crop[1])),
+            #               (int(bbox_crop[0] + bbox_crop[2]) , int(bbox_crop[1] + bbox_crop[3])), (255, 0, 0), 3)
+            # cv2.imshow("video_name", im_draw)
+            # cv2.imwrite("test.jpg",im_draw)
+            # cv2.waitKey(4000)
+
+            cx = ((bbox[0] + bbox[0] + bbox[2])/2 - cfg.TRACK.EXEMPLAR_SIZE/2) + self.center_pos[0]
+            cy = ((bbox[1] + bbox[1] + bbox[3])/2 - cfg.TRACK.EXEMPLAR_SIZE/2) + self.center_pos[1]
 
         # smooth bbox
-        width = self.size[0] * (1 - lr) + bbox[2] * lr
-        height = self.size[1] * (1 - lr) + bbox[3] * lr
+        width = self.size[0] * (1 - lr) + bbox[2] /scale_zz * lr
+        height = self.size[1] * (1 - lr) + bbox[3]/ scale_zz * lr
 
         # clip boundary
         cx, cy, width, height = self._bbox_clip(cx, cy, width,

@@ -17,5 +17,5 @@ TRACKS = {
          }
 
 
-def build_tracker(model):
-    return TRACKS[cfg.TRACK.TYPE](model)
+def build_tracker(model, isyolo = False):
+    return TRACKS[cfg.TRACK.TYPE](model, isyolo)

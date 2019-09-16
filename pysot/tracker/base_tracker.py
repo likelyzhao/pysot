@@ -92,4 +92,10 @@ class SiameseTracker(BaseTracker):
         im_patch = torch.from_numpy(im_patch)
         if cfg.CUDA:
             im_patch = im_patch.cuda()
-        return im_patch
+        return im_patch, [top_pad, bottom_pad, left_pad, right_pad]
+
+    def clip_pad(box , padinfo):
+        top_pad, bottom_pad, left_pad, right_pad = padinfo
+        x, y, width, height = box
+        return [x- left_pad, y-top_pad, width, height]
+
