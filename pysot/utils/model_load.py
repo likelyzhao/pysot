@@ -19,6 +19,19 @@ def check_keys(model, pretrained_state_dict):
     used_pretrained_keys = model_keys & ckpt_keys
     unused_pretrained_keys = ckpt_keys - model_keys
     missing_keys = model_keys - ckpt_keys
+    for key in used_pretrained_keys:
+        #print(pretrained_state_dict[key].shape)
+        #print(model.state_dict()[key].shape)
+        is_equal = False
+        if len(pretrained_state_dict[key].shape) == len(model.state_dict()[key].shape):
+            is_equal = True
+            for idx in range(len(pretrained_state_dict[key].shape)):
+                if (pretrained_state_dict[key].shape[idx]) != model.state_dict()[key].shape[idx]:
+                    is_equal = False
+        if not is_equal:
+            print(key)
+            pretrained_state_dict.pop(key)
+
     # filter 'num_batches_tracked'
     missing_keys = [x for x in missing_keys
                     if not x.endswith('num_batches_tracked')]
@@ -84,3 +97,9 @@ def restore_from(model, optimizer, ckpt_path):
     check_keys(optimizer, ckpt['optimizer'])
     optimizer.load_state_dict(ckpt['optimizer'])
     return model, optimizer, epoch
+
+
+if __name__ == '__main__':
+    from pysot.models.backbone.resnet_atrous import resnet18, resnet34, resnet50
+    model = resnet18(used_layers=[4])
+    load_pretrain(model, "/root/data/pysot/pretrainmodel/resnet18-5c106cde.pth")
